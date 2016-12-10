@@ -102,6 +102,11 @@ class _TaggableManager(models.Manager):
         self.instance = instance
         self.prefetch_cache_name = prefetch_cache_name
         self._db = None
+        #NOTE: Catching the user instance I'm passing into add.
+        try:
+            self.instance.user
+        except:
+            self.instance.user = 'Unknown'
 
     def is_cached(self, instance):
         return self.prefetch_cache_name in instance._prefetched_objects_cache
@@ -166,10 +171,10 @@ class _TaggableManager(models.Manager):
             instance=self.instance, reverse=False,
             model=self.through.tag_model(), pk_set=new_ids, using=db,
         )
-
+        #NOTE Added User passthrough
         for tag in tag_objs:
             self.through._default_manager.using(db).get_or_create(
-                tag=tag, **self._lookup_kwargs())
+                tag=tag, defaults={'user': self.instance.user}, **self._lookup_kwargs())
 
         signals.m2m_changed.send(
             sender=self.through, action="post_add",
@@ -226,7 +231,8 @@ class _TaggableManager(models.Manager):
             tag_objs.add(
                 self.through.tag_model()._default_manager
                 .using(db)
-                .create(name=new_tag))
+            #NOTE added user passthrough to tags
+                .create(name=new_tag, user=self.instance.user))
 
         return tag_objs
 
