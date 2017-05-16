@@ -1,4 +1,4 @@
-_TaggableManager2from __future__ import unicode_literals
+from __future__ import unicode_literals
 
 from functools import total_ordering
 from operator import attrgetter
