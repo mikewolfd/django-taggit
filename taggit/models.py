@@ -10,8 +10,6 @@ from django.utils.encoding import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ugettext
 
-from taggit.utils import _get_field
-
 try:
     from unidecode import unidecode
 except ImportError:
@@ -27,11 +25,17 @@ class TagBase(models.Model):
     def __str__(self):
         return self.name
 
+    def __gt__(self, other):
+        return self.name.lower() > other.name.lower()
+
+    def __lt__(self, other):
+        return self.name.lower() < other.name.lower()
+
     class Meta:
         abstract = True
 
     def save(self, *args, **kwargs):
-        if not self.pk and not self.slug:
+        if self._state.adding and not self.slug:
             self.slug = self.slugify(self.name)
             from django.db import router
             using = kwargs.get("using") or router.db_for_write(
@@ -93,12 +97,12 @@ class ItemBase(models.Model):
 
     @classmethod
     def tag_model(cls):
-        field = _get_field(cls, 'tag')
+        field = cls._meta.get_field('tag')
         return field.remote_field.model if VERSION >= (1, 9) else field.rel.to
 
     @classmethod
     def tag_relname(cls):
-        field = _get_field(cls, 'tag')
+        field = cls._meta.get_field('tag')
         return field.remote_field.related_name if VERSION >= (1, 9) else field.rel.related_name
 
     @classmethod
@@ -188,13 +192,11 @@ class GenericTaggedItemBase(CommonGenericTaggedItemBase):
         abstract = True
 
 
-if VERSION >= (1, 8):
+class GenericUUIDTaggedItemBase(CommonGenericTaggedItemBase):
+    object_id = models.UUIDField(verbose_name=_('Object id'), db_index=True)
 
-    class GenericUUIDTaggedItemBase(CommonGenericTaggedItemBase):
-        object_id = models.UUIDField(verbose_name=_('Object id'), db_index=True)
-
-        class Meta:
-            abstract = True
+    class Meta:
+        abstract = True
 
 
 class TaggedItem(GenericTaggedItemBase, TaggedItemBase):
