@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+_TaggableManager2from __future__ import unicode_literals
 
 from functools import total_ordering
 from operator import attrgetter
@@ -102,11 +102,9 @@ class _TaggableManager(models.Manager):
         self.instance = instance
         self.prefetch_cache_name = prefetch_cache_name
         self._db = None
-        #NOTE: Catching the user instance I'm passing into add.
-        try:
-            self.instance.user
-        except:
-            self.instance.user = 'Unknown'
+
+    def _extra_kwargs(self):
+        return self.through.extra_kwargs(self.instance)
 
     def is_cached(self, instance):
         return self.prefetch_cache_name in instance._prefetched_objects_cache
@@ -174,7 +172,7 @@ class _TaggableManager(models.Manager):
         #NOTE Added User passthrough
         for tag in tag_objs:
             self.through._default_manager.using(db).get_or_create(
-                tag=tag, defaults={'user': self.instance.user}, **self._lookup_kwargs())
+                tag=tag, defaults=self._extra_kwargs(), **self._lookup_kwargs())
 
         signals.m2m_changed.send(
             sender=self.through, action="post_add",
@@ -232,7 +230,7 @@ class _TaggableManager(models.Manager):
                 self.through.tag_model()._default_manager
                 .using(db)
             #NOTE added user passthrough to tags
-                .create(name=new_tag, user=self.instance.user))
+                .create(name=new_tag, **self._extra_kwargs()))
 
         return tag_objs
 
@@ -392,12 +390,14 @@ class TaggableManager(RelatedField, Field):
 
     def __init__(self, verbose_name=_("Tags"),
                  help_text=_("A comma-separated list of tags."),
-                 through=None, blank=False, related_name=None, to=None,
+                 through=None, blank=False, related_name=None, related_through=None, to=None,
                  manager=_TaggableManager):
 
         self.through = through or TaggedItem
         self.swappable = False
         self.manager = manager
+        # self.related_name = related_name
+        self.related_through = related_through
 
         rel = TaggableRel(self, related_name, self.through, to=to)
 
@@ -522,7 +522,7 @@ class TaggableManager(RelatedField, Field):
 
         if self.use_gfk:
             tagged_items = GenericRelation(self.through)
-            tagged_items.contribute_to_class(cls, 'tagged_items')
+            tagged_items.contribute_to_class(cls, self.related_through)
 
         for rel in cls._meta.local_many_to_many:
             if rel == self or not isinstance(rel, TaggableManager):
